@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#090d16">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="アカウント不要でローカルに保存できる、前日終値比がひと目でわかるポートフォリオ管理SPA">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+  <link rel="stylesheet" href="styles.css">
+  <title>Daily Portfolio Snapshot</title>
+</head>
+<body>
+
+  <!-- Offline & Demo Alerts -->
+  <div id="offline-banner" class="banner offline">
+    📴 オフライン状態です。最後にキャッシュされた保存データを表示しています。
+  </div>
+  <div id="demo-banner" class="banner warning">
+    💡 デモモード動作中: サンプルデータを表示しています。設定画面でTwelve DataのAPIキーを入力すると実データを取得できます。
+  </div>
+
+  <!-- Header -->
+  <header>
+    <div class="header-inner">
+      <div class="logo-area">
+        <div class="logo-icon">▲</div>
+        <div>
+          <div class="brand-title">Daily Portfolio Snapshot</div>
+        </div>
+      </div>
+      <nav id="desktop-nav-container" class="header-actions"></nav>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="container">
+
+    <!-- TAB 1: DASHBOARD -->
+    <section id="tab-dashboard" class="tab-content active">
+      <div class="hero-card">
+        <div class="hero-header">
+          <div class="hero-title">トータル評価額 (前日終値基準)</div>
+          <span id="base-currency-badge" class="currency-pill">JPY (¥)</span>
+        </div>
+
+        <div id="hero-total-val" class="hero-total-value">¥0</div>
+
+        <div class="hero-diff-row">
+          <div id="hero-diff-badge" class="diff-badge neutral">
+            <span>±¥0</span>
+            <span>(±0.00%)</span>
+          </div>
+          <div id="hero-substats" class="hero-substats">
+            前日終値総計: <span id="hero-prev-total">¥0</span>
+          </div>
+        </div>
+
+        <div class="refresh-bar">
+          <div class="refresh-info">
+            <span id="cache-dot" class="cache-dot"></span>
+            <span id="last-update-text">データ取得: 準備中...</span>
+          </div>
+          <button id="btn-manual-refresh" class="btn btn-outline btn-sm" title="相場データを再取得">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.19"/>
+            </svg>
+            今すぐ更新
+          </button>
+        </div>
+      </div>
+
+      <div class="section-title-row">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <h2 class="section-title">保有銘柄一覧</h2>
+          <span id="holdings-count-badge" class="count-badge">0銘柄</span>
+        </div>
+        <button id="btn-goto-add" class="btn btn-primary btn-sm">+ 銘柄追加</button>
+      </div>
+
+      <div id="holdings-list-container" class="holdings-list"></div>
+
+      <!-- Static AdSense Placeholder -->
+      <aside class="adsense-placeholder" aria-label="スポンサーリンク枠">
+        <div class="ad-disclaimer">広告枠 (AdSense プレースホルダ) / ユーザートラッキング無効・プライバシー配慮</div>
+        <div class="ad-banner-mock">
+          <div class="ad-banner-title">スポンサー広告プレースホルダ</div>
+          <div class="ad-banner-subtitle">静的配置枠 (個人データの追跡は行いません)</div>
+        </div>
+      </aside>
+    </section>
+
+    <!-- TAB 2: PORTFOLIO MANAGEMENT -->
+    <section id="tab-manage" class="tab-content">
+      <div class="card">
+        <h2 class="section-title" style="margin-bottom: 16px;">保有銘柄の新規登録</h2>
+        <form id="form-add-symbol">
+          <div class="form-group">
+            <label class="form-label" for="input-symbol">ティッカーシンボル (例: SPY, VOO, VT, QQQ, 1306)</label>
+            <input type="text" id="input-symbol" class="form-input" placeholder="SPY" required autocomplete="off" autocapitalize="characters">
+            <div class="quick-chips">
+              <span class="chip" onclick="selectQuickSymbol('SPY')">SPY (S&P 500)</span>
+              <span class="chip" onclick="selectQuickSymbol('VOO')">VOO (S&P 500)</span>
+              <span class="chip" onclick="selectQuickSymbol('VT')">VT (全世界株)</span>
+              <span class="chip" onclick="selectQuickSymbol('QQQ')">QQQ (ナスダック)</span>
+              <span class="chip" onclick="selectQuickSymbol('1306')">1306 (TOPIX ETF)</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="input-shares">保有数量 (株 / 口)</label>
+            <input type="number" id="input-shares" class="form-input" placeholder="10" step="any" min="0.0001" required>
+            <div class="form-help">小数点以下の端株も入力可能です。</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="input-currency">取引通貨</label>
+            <select id="input-currency" class="form-select">
+              <option value="USD">USD (米ドル - 米国ETF/株)</option>
+              <option value="JPY">JPY (日本円 - 東証ETF/日本株)</option>
+            </select>
+          </div>
+
+          <button type="submit" class="btn btn-primary" style="width: 100%;">ポートフォリオに追加</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2 class="section-title" style="margin-bottom: 14px;">現在の登録銘柄一覧</h2>
+        <div id="manage-holdings-list" class="holdings-list"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="section-title" style="margin-bottom: 8px;">データ保存・バックアップ</h2>
+        <p class="form-help" style="margin-bottom: 16px;">
+          データはお使いのブラウザ（LocalStorage）にのみ安全に保存されています。端末移行やバックアップのためにJSON形式で出力・読込が可能です。
+        </p>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button id="btn-export-json" class="btn btn-secondary" style="flex: 1; min-width: 140px;">📥 JSON出力</button>
+          <label class="btn btn-secondary" style="flex: 1; min-width: 140px; cursor: pointer; text-align: center;">
+            📤 JSON読込
+            <input type="file" id="file-import-json" accept=".json" style="display: none;">
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: SETTINGS -->
+    <section id="tab-settings" class="tab-content">
+      <div class="card">
+        <h2 class="section-title" style="margin-bottom: 16px;">Twelve Data API設定</h2>
+        <div class="form-group">
+          <label class="form-label" for="input-api-key">APIキー</label>
+          <input type="password" id="input-api-key" class="form-input" placeholder="YOUR_API_KEY (未入力時はデモ相場)">
+          <div class="form-help">
+            Twelve Data (twelvedata.com) で無料発行できるAPIキーを入力します。キーはお使いのブラウザ内にのみ保存されます。
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-top: 12px;">
+          <button id="btn-toggle-key-visibility" class="btn btn-outline btn-sm">表示切替</button>
+          <button id="btn-save-api-key" class="btn btn-primary btn-sm" style="flex: 1;">APIキーを保存</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="section-title" style="margin-bottom: 16px;">表示通貨・為替レート</h2>
+        <div class="form-group">
+          <label class="form-label" for="select-base-currency">合計評価額の表示通貨</label>
+          <select id="select-base-currency" class="form-select">
+            <option value="JPY">日本円 (JPY - ¥)</option>
+            <option value="USD">米ドル (USD - $)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="input-usdjpy-rate">想定為替レート (1 USD = ○ 円)</label>
+          <input type="number" id="input-usdjpy-rate" class="form-input" value="155.00" step="0.1">
+          <div class="form-help">米国株（USD）と日本株（JPY）を合算する換算に使用します。</div>
+        </div>
+
+        <button id="btn-save-currency-settings" class="btn btn-secondary btn-sm" style="width: 100%;">通貨設定を保存</button>
+      </div>
+
+      <div class="card">
+        <h2 class="section-title" style="margin-bottom: 16px;">キャッシュとデータ管理</h2>
+        <p class="form-help" style="margin-bottom: 12px;">
+          相場データはAPI呼び出し削減のため<strong>24時間ブラウザ内にキャッシュ</strong>されます。ページにフォーカスが戻った際に24時間以上経過していれば自動更新されます。
+        </p>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button id="btn-clear-cache" class="btn btn-outline btn-sm" style="flex: 1;">キャッシュクリア</button>
+          <button id="btn-reset-sample" class="btn btn-outline btn-sm" style="flex: 1;">サンプルデータ復元</button>
+        </div>
+      </div>
+
+      <div class="card" style="border-color: rgba(239, 68, 68, 0.2);">
+        <h2 class="section-title" style="margin-bottom: 10px; color: #f87171;">初期化</h2>
+        <p class="form-help" style="margin-bottom: 14px;">LocalStorage内のすべてのポートフォリオ情報と設定を消去します。</p>
+        <button id="btn-clear-all" class="btn btn-danger btn-sm">全データを完全消去</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Mobile Bottom Navigation -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-tab="tab-dashboard" onclick="switchTab('tab-dashboard')">
+      <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+      ダッシュボード
+    </button>
+    <button class="nav-btn" data-tab="tab-manage" onclick="switchTab('tab-manage')">
+      <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      銘柄管理
+    </button>
+    <button class="nav-btn" data-tab="tab-settings" onclick="switchTab('tab-settings')">
+      <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+      設定
+    </button>
+  </nav>
+
+  <div id="toast" class="toast"></div>
+
+  <!-- Modular Script -->
+  <script src="main.js"></script>
+</body>
+</html>
